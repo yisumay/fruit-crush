@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-username="yisumay">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="username" content="yisumay" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>水果凑十 · 反应考验</title>
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>水果凑十</h1>
+      <p class="sub">
+        在棋盘上按住并拖出一个矩形区域，使框内水果上的数字之和恰好等于
+        <strong>10</strong> 即可消除并得分。每局随机一种水果主题，并有一个<strong>禁忌数字</strong>：若<strong>点按</strong>（短按，不拖拽）该数字所在的格子，当前总分将清零。
+      </p>
+
+      <div class="hud">
+        <div class="panel">
+          <div class="label">得分</div>
+          <div class="value" id="score">0</div>
+        </div>
+        <div class="panel forbidden">
+          <div class="label">禁忌数字（点按清零）</div>
+          <div class="value" id="forbidden-num">—</div>
+        </div>
+        <div class="panel" style="grid-column: 1 / -1">
+          <div class="label">本局水果</div>
+          <div class="fruit-badge">
+            <img id="fruit-preview" src="" alt="" width="40" height="40" />
+            <span class="fruit-name" id="fruit-name">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <button type="button" id="btn-new">新开一局</button>
+        <span class="hint">拖拽框选 · 短按单格</span>
+      </div>
+
+      <div class="board-wrap" id="board-wrap">
+        <div id="selection-rect"></div>
+        <div id="board"></div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="js/game.js"></script>
+  </body>
+</html>
