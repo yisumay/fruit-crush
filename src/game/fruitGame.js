@@ -1,28 +1,43 @@
-(function () {
-  const COLS = 8;
-  const ROWS = 11;
-  const DRAG_PX = 12;
-  const SUM_TARGET = 10;
+const COLS = 8;
+const ROWS = 11;
+const DRAG_PX = 12;
+const SUM_TARGET = 10;
 
-  const FRUITS = [
-    { id: "apple", name: "苹果", file: "apple.svg" },
-    { id: "orange", name: "橙子", file: "orange.svg" },
-    { id: "grape", name: "葡萄", file: "grape.svg" },
-    { id: "strawberry", name: "草莓", file: "strawberry.svg" },
-    { id: "banana", name: "香蕉", file: "banana.svg" },
-    { id: "cherry", name: "樱桃", file: "cherry.svg" },
-    { id: "watermelon", name: "西瓜", file: "watermelon.svg" },
-  ];
+const FRUITS = [
+  { id: "apple", name: "苹果", file: "apple.svg" },
+  { id: "orange", name: "橙子", file: "orange.svg" },
+  { id: "grape", name: "葡萄", file: "grape.svg" },
+  { id: "strawberry", name: "草莓", file: "strawberry.svg" },
+  { id: "banana", name: "香蕉", file: "banana.svg" },
+  { id: "cherry", name: "樱桃", file: "cherry.svg" },
+  { id: "watermelon", name: "西瓜", file: "watermelon.svg" },
+];
 
-  const boardEl = document.getElementById("board");
-  const boardWrap = document.getElementById("board-wrap");
-  const selRect = document.getElementById("selection-rect");
-  const scoreEl = document.getElementById("score");
-  const forbiddenEl = document.getElementById("forbidden-num");
-  const fruitNameEl = document.getElementById("fruit-name");
-  const fruitImgEl = document.getElementById("fruit-preview");
-  const toastEl = document.getElementById("toast");
-  const newBtn = document.getElementById("btn-new");
+/**
+ * @param {object} els
+ * @param {HTMLElement} els.boardEl
+ * @param {HTMLElement} els.boardWrap
+ * @param {HTMLElement} els.selRect
+ * @param {HTMLElement} els.scoreEl
+ * @param {HTMLElement} els.forbiddenEl
+ * @param {HTMLElement} els.fruitNameEl
+ * @param {HTMLImageElement} els.fruitImgEl
+ * @param {HTMLElement} els.toastEl
+ * @param {HTMLButtonElement} els.newBtn
+ * @returns {{ newGame: () => void, destroy: () => void }}
+ */
+export function mountFruitGame(els) {
+  const {
+    boardEl,
+    boardWrap,
+    selRect,
+    scoreEl,
+    forbiddenEl,
+    fruitNameEl,
+    fruitImgEl,
+    toastEl,
+    newBtn,
+  } = els;
 
   let grid = [];
   let theme = null;
@@ -55,7 +70,7 @@
 
   function setTheme(t) {
     theme = t;
-    const url = `assets/fruits/${t.file}`;
+    const url = `/assets/fruits/${t.file}`;
     fruitNameEl.textContent = t.name;
     fruitImgEl.src = url;
     fruitImgEl.alt = t.name;
@@ -100,9 +115,9 @@
         const v = grid[r][c];
         const div = document.createElement("div");
         div.className = "cell";
-        div.dataset.r = r;
-        div.dataset.c = c;
-        div.style.backgroundImage = `url(assets/fruits/${theme.file})`;
+        div.dataset.r = String(r);
+        div.dataset.c = String(c);
+        div.style.backgroundImage = `url(/assets/fruits/${theme.file})`;
         const span = document.createElement("span");
         span.className = "num";
         span.textContent = String(v);
@@ -308,4 +323,16 @@
   newBtn.addEventListener("click", newGame);
 
   newGame();
-})();
+
+  return {
+    newGame,
+    destroy() {
+      boardWrap.removeEventListener("pointerdown", onPointerDown);
+      boardWrap.removeEventListener("pointermove", onPointerMove);
+      boardWrap.removeEventListener("pointerup", onPointerUp);
+      boardWrap.removeEventListener("pointercancel", onPointerCancel);
+      newBtn.removeEventListener("click", newGame);
+      clearTimeout(showToast._t);
+    },
+  };
+}
