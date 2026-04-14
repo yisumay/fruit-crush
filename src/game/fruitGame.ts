@@ -2,7 +2,7 @@ const COLS = 8;
 const ROWS = 11;
 const DRAG_PX = 12;
 const SUM_TARGET = 10;
-const ROUND_MS = 90 * 1000;
+const ROUND_MS = 150 * 1000;
 
 export interface FruitTheme {
   id: string;
@@ -13,9 +13,7 @@ export interface FruitTheme {
 const FRUITS: readonly FruitTheme[] = [
   { id: "apple", name: "苹果", file: "apple.svg" },
   { id: "orange", name: "橙子", file: "orange.svg" },
-  { id: "grape", name: "葡萄", file: "grape.svg" },
   { id: "strawberry", name: "草莓", file: "strawberry.svg" },
-  { id: "banana", name: "香蕉", file: "banana.svg" },
   { id: "cherry", name: "樱桃", file: "cherry.svg" },
   { id: "watermelon", name: "西瓜", file: "watermelon.svg" },
 ];
@@ -23,6 +21,16 @@ const FRUITS: readonly FruitTheme[] = [
 type GridCell = number | null;
 type Grid = GridCell[][];
 type ToastKind = "info" | "bad" | "good";
+
+export interface RoundSettlePayload {
+  score: number;
+  fruitName: string;
+  fruitFile: string;
+  /** 禁用数字（仅高难度开启时有意义，否则为 0） */
+  forbidden: number;
+  /** 本局是否开启「禁用数字」高难度规则 */
+  forbiddenEnabled: boolean;
+}
 
 export interface FruitGameElements {
   boardEl: HTMLElement;
@@ -36,6 +44,12 @@ export interface FruitGameElements {
   newBtn: HTMLButtonElement;
   timerFillEl: HTMLElement;
   timerLabelEl: HTMLElement;
+  /** 时间耗尽时触发，用于展示结算 UI */
+  onRoundSettle?: (payload: RoundSettlePayload) => void;
+  /** 任意方式开启新一局时触发（含「新开一局」与结算后再来） */
+  onNewRound?: () => void;
+  /** 是否开启高难度：禁用数字 + 框内不可含该数字等 */
+  isHardModeForbidden: () => boolean;
 }
 
 export interface NewGameOptions {
@@ -69,7 +83,40 @@ export function mountFruitGame(els: FruitGameElements): FruitGameApi {
     newBtn,
     timerFillEl,
     timerLabelEl,
+    onRoundSettle,
+    onNewRound,
+    isHardModeForbidden,
   } = els;
+
+  /** 高难度下，棋盘上出现「禁用数字」格子的概率（约 4.5%，低于均匀随机的 1/9） */
+  const HARD_MODE_FORBIDDEN_CELL_RATE = 0.045;
+
+  /**
+   * 按权重随机：较小数字（1～5）权重大，出现更多，矩形内更容易凑出 10。
+   * 均匀 1～9 时大数偏多，可消组合会明显变少。
+   */
+  const PLAY_DIGIT_WEIGHT: readonly number[] = [
+    0, 14, 14, 13, 12, 11, 9, 8, 6, 5,
+  ];
+
+  /** 标准模式：额外撒入的「相邻两格之和为 10」数对数量，保证盘面上总有一些直观看得到的解 */
+  const SPRINKLE_SUM10_PAIR_COUNT = 16;
+
+  const SUM10_ADJ_PAIRS: readonly (readonly [number, number])[] = [
+    [1, 9],
+    [9, 1],
+    [2, 8],
+    [8, 2],
+    [3, 7],
+    [7, 3],
+    [4, 6],
+    [6, 4],
+    [5, 5],
+  ];
+
+  function hardOn(): boolean {
+    return isHardModeForbidden();
+  }
 
   let grid: Grid = [];
   let theme!: FruitTheme;
@@ -77,7 +124,6 @@ export function mountFruitGame(els: FruitGameElements): FruitGameApi {
   let score = 0;
   let roundEndTime = 0;
   let timerRaf: number | null = null;
-  let pendingRoundTimeout: ReturnType<typeof setTimeout> | null = null;
 
   let pointerId: number | null = null;
   let startX = 0;
@@ -92,6 +138,76 @@ export function mountFruitGame(els: FruitGameElements): FruitGameApi {
     return 1 + Math.floor(Math.random() * 9);
   }
 
+  function weightPickFromPool(pool: readonly number[]): number {
+    let sum = 0;
+    for (const d of pool) sum += PLAY_DIGIT_WEIGHT[d] ?? 1;
+    let r = Math.random() * sum;
+    for (const d of pool) {
+      r -= PLAY_DIGIT_WEIGHT[d] ?? 1;
+      if (r <= 0) return d;
+    }
+    return pool[pool.length - 1]!;
+  }
+
+  /** 高难度：禁用数字在新生格中占比降低；其余格仍用偏「好凑十」的权重 */
+  function randomDigitRareForbidden(fbd: number): number {
+    if (Math.random() < HARD_MODE_FORBIDDEN_CELL_RATE) return fbd;
+    const pool = [1, 2, 3, 4, 5, 6, 7, 8, 9].filter((d) => d !== fbd);
+    return weightPickFromPool(pool);
+  }
+
+  function rollNewCellDigit(): number {
+    if (!hardOn()) return weightPickFromPool([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    return randomDigitRareForbidden(forbidden);
+  }
+
+  function cellKey(r: number, c: number): string {
+    return `${r},${c}`;
+  }
+
+  /** 在标准模式下随机铺一些相邻两格之和为 10 的数对，降低「满盘无解感」 */
+  function sprinkleSum10Pairs(pairCount: number): void {
+    const used = new Set<string>();
+    let placed = 0;
+    for (let attempt = 0; attempt < 500 && placed < pairCount; attempt++) {
+      const horizontal = Math.random() < 0.5;
+      const pr = pick(SUM10_ADJ_PAIRS);
+      if (horizontal) {
+        const r = Math.floor(Math.random() * ROWS);
+        const c = Math.floor(Math.random() * (COLS - 1));
+        const k0 = cellKey(r, c);
+        const k1 = cellKey(r, c + 1);
+        if (used.has(k0) || used.has(k1)) continue;
+        grid[r][c] = pr[0];
+        grid[r][c + 1] = pr[1];
+        used.add(k0);
+        used.add(k1);
+        placed++;
+      } else {
+        const r = Math.floor(Math.random() * (ROWS - 1));
+        const c = Math.floor(Math.random() * COLS);
+        const k0 = cellKey(r, c);
+        const k1 = cellKey(r + 1, c);
+        if (used.has(k0) || used.has(k1)) continue;
+        grid[r][c] = pr[0];
+        grid[r + 1][c] = pr[1];
+        used.add(k0);
+        used.add(k1);
+        placed++;
+      }
+    }
+  }
+
+  function buildGrid(): void {
+    grid = [];
+    for (let r = 0; r < ROWS; r++) {
+      const row: GridCell[] = [];
+      for (let c = 0; c < COLS; c++) row.push(rollNewCellDigit());
+      grid.push(row);
+    }
+    if (!hardOn()) sprinkleSum10Pairs(SPRINKLE_SUM10_PAIR_COUNT);
+  }
+
   function formatRemain(ms: number): string {
     const s = Math.ceil(ms / 1000);
     const m = Math.floor(s / 60);
@@ -103,10 +219,6 @@ export function mountFruitGame(els: FruitGameElements): FruitGameApi {
     if (timerRaf !== null) {
       cancelAnimationFrame(timerRaf);
       timerRaf = null;
-    }
-    if (pendingRoundTimeout !== null) {
-      clearTimeout(pendingRoundTimeout);
-      pendingRoundTimeout = null;
     }
   }
 
@@ -135,20 +247,14 @@ export function mountFruitGame(els: FruitGameElements): FruitGameApi {
   function onRoundTimeUp(): void {
     stopRoundTimer();
     const finalScore = score;
-    showToast(`时间到！本局得分：${finalScore}。即将开始新一局…`, "bad", 5200);
-    pendingRoundTimeout = setTimeout(() => {
-      pendingRoundTimeout = null;
-      newGame({ silent: true });
-    }, 5300);
-  }
-
-  function buildGrid(): void {
-    grid = [];
-    for (let r = 0; r < ROWS; r++) {
-      const row: GridCell[] = [];
-      for (let c = 0; c < COLS; c++) row.push(randomDigit());
-      grid.push(row);
-    }
+    const fe = hardOn();
+    onRoundSettle?.({
+      score: finalScore,
+      fruitName: theme.name,
+      fruitFile: theme.file,
+      forbidden: fe ? forbidden : 0,
+      forbiddenEnabled: fe,
+    });
   }
 
   function setTheme(t: FruitTheme): void {
@@ -160,21 +266,34 @@ export function mountFruitGame(els: FruitGameElements): FruitGameApi {
   }
 
   function newGame(opts: NewGameOptions = {}): void {
+    onNewRound?.();
     stopRoundTimer();
     theme = pick(FRUITS);
-    forbidden = randomDigit();
+    if (hardOn()) {
+      forbidden = randomDigit();
+      forbiddenEl.textContent = String(forbidden);
+    } else {
+      forbidden = 0;
+      forbiddenEl.textContent = "—";
+    }
     score = 0;
     buildGrid();
     setTheme(theme);
-    forbiddenEl.textContent = String(forbidden);
     scoreEl.textContent = "0";
     renderBoard();
     startRoundTimer();
     if (!opts.silent) {
-      showToast(
-        `本局水果：${theme.name}。禁忌数字：${forbidden}（短按该数字所在格会清零得分；凑十框选区域内不可含该数字）。每局限时 1 分 30 秒（右侧进度条从左向右减短）。`,
-        "info"
-      );
+      if (hardOn()) {
+        showToast(
+          `本局水果：${theme.name}。【高难度】禁用数字：${forbidden}（点按仅提示；凑十框选区域内不可含该数字；棋盘上该数字出现较少）。每局限时 2 分钟。`,
+          "info"
+        );
+      } else {
+        showToast(
+          `本局水果：${theme.name}。简单模式：无禁用数字，凑十即可消除。可在侧栏开启「高难度 · 禁用数字」。每局限时 2 分钟。`,
+          "info"
+        );
+      }
     }
   }
 
@@ -338,7 +457,7 @@ export function mountFruitGame(els: FruitGameElements): FruitGameApi {
         if (v !== null) kept.push(v);
       }
       const missing = ROWS - kept.length;
-      const topNew = Array.from({ length: missing }, () => randomDigit());
+      const topNew = Array.from({ length: missing }, () => rollNewCellDigit());
       const col = [...topNew, ...kept];
       for (let r = 0; r < ROWS; r++) grid[r][c] = col[r];
     }
@@ -356,9 +475,9 @@ export function mountFruitGame(els: FruitGameElements): FruitGameApi {
       shakeAllCells();
       return;
     }
-    if (rectContainsForbidden(top, bottom, left, right)) {
+    if (hardOn() && rectContainsForbidden(top, bottom, left, right)) {
       showToast(
-        `虽然区域之和为 ${SUM_TARGET}，但框内含有禁忌数字 ${forbidden}，无法消除`,
+        `虽然区域之和为 ${SUM_TARGET}，但框内含有禁用数字 ${forbidden}，无法消除（得分不变）`,
         "bad"
       );
       shakeAllCells();
@@ -439,15 +558,16 @@ export function mountFruitGame(els: FruitGameElements): FruitGameApi {
 
     if (!dragActive) {
       const v = grid[startCell.r][startCell.c];
-      if (v === forbidden) {
-        score = 0;
-        scoreEl.textContent = "0";
+      if (hardOn() && v === forbidden) {
         const el = cellAt(startCell.r, startCell.c);
         if (el) {
           el.classList.add("shake");
           setTimeout(() => el.classList.remove("shake"), 500);
         }
-        showToast(`点中了禁忌数字 ${forbidden}，得分已清零！`, "bad");
+        showToast(
+          `点按了禁用数字 ${forbidden}，得分不变；凑十框选区域内也不可包含该数字。`,
+          "bad"
+        );
       }
       startCell = null;
       clearSelectionVisual();
