@@ -1,0 +1,13 @@
+# https://docs.netlify.com/configure-builds/file-based-configuration/
+[build]
+  command = "pnpm install && pnpm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# 纯静态 SPA：若以后使用前端路由，可避免刷新 404
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
