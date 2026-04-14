@@ -41,7 +41,8 @@ export interface FruitGameElements {
   fruitNameEl: HTMLElement;
   fruitImgEl: HTMLImageElement;
   toastEl: HTMLElement;
-  newBtn: HTMLButtonElement;
+  /** 点击后新开一局，可传多个按钮（如移动端顶栏 + 桌面侧栏） */
+  newGameBtns: HTMLButtonElement[];
   timerFillEl: HTMLElement;
   timerLabelEl: HTMLElement;
   /** 时间耗尽时触发，用于展示结算 UI */
@@ -80,7 +81,7 @@ export function mountFruitGame(els: FruitGameElements): FruitGameApi {
     fruitNameEl,
     fruitImgEl,
     toastEl,
-    newBtn,
+    newGameBtns,
     timerFillEl,
     timerLabelEl,
     onRoundSettle,
@@ -285,12 +286,12 @@ export function mountFruitGame(els: FruitGameElements): FruitGameApi {
     if (!opts.silent) {
       if (hardOn()) {
         showToast(
-          `本局水果：${theme.name}。【高难度】禁用数字：${forbidden}（点按仅提示；凑十框选区域内不可含该数字；棋盘上该数字出现较少）。每局限时 2 分钟。`,
+          `本局水果：${theme.name}。【高难度】禁用数字：${forbidden}（点按仅提示；凑十框选区域内不可含该数字；棋盘上该数字出现较少）。每局限时 2 分 30 秒。`,
           "info"
         );
       } else {
         showToast(
-          `本局水果：${theme.name}。简单模式：无禁用数字，凑十即可消除。可在侧栏开启「高难度 · 禁用数字」。每局限时 2 分钟。`,
+          `本局水果：${theme.name}。简单模式：无禁用数字，凑十即可消除。可在侧栏开启「高难度 · 禁用数字」。每局限时 2 分 30 秒。`,
           "info"
         );
       }
@@ -605,7 +606,9 @@ export function mountFruitGame(els: FruitGameElements): FruitGameApi {
   function onNewGameClick(): void {
     newGame();
   }
-  newBtn.addEventListener("click", onNewGameClick);
+  for (const btn of newGameBtns) {
+    btn.addEventListener("click", onNewGameClick);
+  }
 
   newGame();
 
@@ -616,7 +619,9 @@ export function mountFruitGame(els: FruitGameElements): FruitGameApi {
       boardWrap.removeEventListener("pointermove", onPointerMove);
       boardWrap.removeEventListener("pointerup", onPointerUp);
       boardWrap.removeEventListener("pointercancel", onPointerCancel);
-      newBtn.removeEventListener("click", onNewGameClick);
+      for (const btn of newGameBtns) {
+        btn.removeEventListener("click", onNewGameClick);
+      }
       stopRoundTimer();
       if (hideToastTimer !== undefined) clearTimeout(hideToastTimer);
     },

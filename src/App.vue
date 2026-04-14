@@ -15,6 +15,7 @@ const fruitNameRef = ref<HTMLElement | null>(null);
 const fruitImgRef = ref<HTMLImageElement | null>(null);
 const toastRef = ref<HTMLElement | null>(null);
 const newBtnRef = ref<HTMLButtonElement | null>(null);
+const newBtnHeaderRef = ref<HTMLButtonElement | null>(null);
 const timerFillRef = ref<HTMLElement | null>(null);
 const timerLabelRef = ref<HTMLElement | null>(null);
 
@@ -120,7 +121,9 @@ onMounted(() => {
   const fruitNameEl = fruitNameRef.value;
   const fruitImgEl = fruitImgRef.value;
   const toastEl = toastRef.value;
-  const newBtn = newBtnRef.value;
+  const newGameBtns = [newBtnHeaderRef.value, newBtnRef.value].filter(
+    (b): b is HTMLButtonElement => b != null
+  );
   const timerFillEl = timerFillRef.value;
   const timerLabelEl = timerLabelRef.value;
   if (
@@ -132,7 +135,7 @@ onMounted(() => {
     !fruitNameEl ||
     !fruitImgEl ||
     !toastEl ||
-    !newBtn ||
+    newGameBtns.length === 0 ||
     !timerFillEl ||
     !timerLabelEl
   ) {
@@ -147,7 +150,7 @@ onMounted(() => {
     fruitNameEl,
     fruitImgEl,
     toastEl,
-    newBtn,
+    newGameBtns,
     timerFillEl,
     timerLabelEl,
     onRoundSettle: openSettlement,
@@ -163,56 +166,71 @@ onBeforeUnmount(() => {
 
 <template>
   <div
-    class="max-w-[min(1180px,calc(100%-1.75rem))] mx-auto px-3.5 pt-4 pb-8 box-border"
+    class="max-w-[min(1180px,calc(100%-1rem))] mx-auto px-2 sm:px-3.5 pt-3 sm:pt-4 pb-6 sm:pb-8 box-border flex flex-col"
   >
-    <div
-      class="flex flex-col lg:flex-row gap-5 lg:gap-6 items-stretch lg:items-start"
+    <!-- 顶部品牌：移动端首屏可见；桌面端同样置顶，下方为三栏 -->
+    <header
+      class="flex items-center justify-between gap-2 sm:gap-3 mb-12px sm:mb-3 lg:mb-4 shrink-0"
     >
-      <!-- 左：说明 -->
-      <aside
-        class="shrink-0 lg:w-[min(300px,34%)] order-2 lg:order-1 lg:pt-1"
+      <div class="flex items-center gap-2 sm:gap-2.5 lg:gap-3 min-w-0 flex-1">
+        <img
+          src="/logo-mark.svg"
+          width="36"
+          height="36"
+          alt=""
+          class="w-24px h-24px sm:w-10 sm:h-10 lg:w-12 lg:h-12 shrink-0 rounded-lg sm:rounded-xl lg:rounded-2xl shadow-[0_4px_16px_rgba(67,97,238,0.32)] lg:shadow-[0_6px_20px_rgba(67,97,238,0.35)]"
+          decoding="async"
+        />
+        <h1
+          class="app-title text-[1rem] sm:text-[1.15rem] lg:text-26px font-bold m-0 tracking-wide leading-tight min-w-0"
+        >
+          水果凑十
+        </h1>
+      </div>
+      <button
+        ref="newBtnHeaderRef"
+        type="button"
+        class="lg:hidden shrink-0 whitespace-nowrap border-none py-1.5 px-2.5 sm:px-3 rounded-lg text-[0.68rem] sm:text-[0.74rem] font-semibold cursor-pointer text-white bg-gradient-to-b from-[#5b73ff] via-[#4f6cf5] to-[#3d52d4] shadow-[0_2px_10px_rgba(99,102,241,0.4)] active:scale-[0.96]"
       >
-        <div class="flex items-center gap-3 mb-2 flex-wrap">
-          <img
-            src="/logo-mark.svg"
-            width="48"
-            height="48"
-            alt=""
-            class="shrink-0 rounded-2xl shadow-[0_6px_20px_rgba(67,97,238,0.35)]"
-            decoding="async"
-          />
-          <h1 class="app-title text-26px font-bold m-0 tracking-wide leading-tight">
-            水果凑十
-          </h1>
-        </div>
-        <p class="app-muted text-15px leading-relaxed m-0">
+        新开一局
+      </button>
+    </header>
+
+    <div
+      class="flex flex-col lg:flex-row gap-4 lg:gap-6 items-stretch lg:items-start flex-1 min-h-0"
+    >
+      <!-- 规则说明：移动端在棋盘与数据栏之下；桌面仍在左侧 -->
+      <aside
+        class="shrink-0 lg:w-[min(300px,34%)] order-3 lg:order-1 lg:pt-1 w-full max-w-full"
+      >
+        <p class="app-muted text-[0.8125rem] sm:text-15px leading-relaxed m-0">
           在棋盘上按住并拖出一个矩形区域，使框内水果上的数字之和恰好等于
           <strong class="text-[#e8eef5]">10</strong>
-          即可消除并得分。默认<strong class="text-[#e8eef5]">简单模式</strong>无其它限制。侧栏勾选
+          即可消除并得分。默认<strong class="text-[#e8eef5]">简单模式</strong>无其它限制。在棋盘下方区域勾选
           <strong class="text-[#e8eef5]">高难度 · 禁用数字</strong>
           后，本局会随机一个禁用数字：凑十框选区域内<strong class="text-[#e8eef5]">不可含</strong>该数字。每局限时
-          <strong class="text-[#e8eef5]">2 分钟</strong>。
+          <strong class="text-[#e8eef5]">2 分 30 秒</strong>。
         </p>
       </aside>
 
-      <!-- 中：水果盘 -->
+      <!-- 中：水果盘（移动端紧跟标题，减少首屏滚动） -->
       <div
-        class="flex-1 min-w-0 flex justify-center items-start order-1 lg:order-2"
+        class="flex-1 min-w-0 flex justify-center items-start order-1 lg:order-2 w-full"
       >
         <div
           ref="boardWrapRef"
-          class="board-shell relative touch-none rounded-2xl p-2.5 w-fit max-w-full"
+          class="board-shell relative touch-none rounded-2xl p-2 sm:p-2.5 w-full max-w-full mx-auto lg:w-fit"
         >
           <div ref="selRectRef" class="selection-rect" />
           <div id="board" ref="boardRef" />
         </div>
       </div>
 
-      <!-- 右：分数与进度条 -->
+      <!-- 计时 / 得分等：移动端在棋盘下、规则上；桌面仍在右侧 -->
       <aside
-        class="shrink-0 lg:w-[min(280px,32%)] flex flex-col gap-3 order-3"
+        class="shrink-0 lg:w-[min(280px,32%)] flex flex-col gap-2.5 sm:gap-3 order-2 lg:order-3 w-full max-w-full lg:max-w-none"
       >
-        <div class="round-timer app-panel rounded-xl py-3 px-3.5">
+        <div class="round-timer app-panel rounded-xl py-2 sm:py-3 px-3.5">
           <div class="round-timer__row">
             <span>本局剩余时间</span>
             <strong ref="timerLabelRef">2:30</strong>
@@ -223,7 +241,7 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="grid grid-cols-2 gap-2.5">
-          <div class="app-panel rounded-xl py-3 px-3.5">
+          <div class="app-panel rounded-xl  py-2 sm:py-3 px-3.5">
             <div
               class="app-muted text-[0.7rem] uppercase tracking-wider mb-1"
             >
@@ -231,7 +249,7 @@ onBeforeUnmount(() => {
             </div>
             <div ref="scoreRef" class="text-25px lh-30px font-bold">0</div>
           </div>
-          <div class="app-panel rounded-xl py-3 px-3.5">
+          <div class="app-panel rounded-xl  py-2 sm:py-3 px-3.5">
             <div
               class="app-muted text-[0.7rem] uppercase tracking-wider mb-1"
             >
@@ -289,11 +307,13 @@ onBeforeUnmount(() => {
           <button
             ref="newBtnRef"
             type="button"
-            class="w-full border-none py-2.5 px-[18px] rounded-[10px] text-[0.9rem] font-semibold cursor-pointer text-white bg-gradient-to-b from-[#5b73ff] via-[#4f6cf5] to-[#3d52d4] shadow-[0_4px_20px_rgba(99,102,241,0.45),inset_0_1px_0_rgba(255,255,255,0.18)] active:scale-[0.98]"
+            class="hidden lg:flex w-full border-none py-2.5 px-[18px] rounded-[10px] text-[0.9rem] font-semibold cursor-pointer text-white bg-gradient-to-b from-[#5b73ff] via-[#4f6cf5] to-[#3d52d4] shadow-[0_4px_20px_rgba(99,102,241,0.45),inset_0_1px_0_rgba(255,255,255,0.18)] active:scale-[0.98]"
           >
             新开一局
           </button>
-          <span class="app-muted text-[0.75rem] text-center leading-snug">
+          <span
+            class="app-muted text-[0.75rem] text-center leading-snug hidden lg:block"
+          >
             拖拽框选 · 短按单格
           </span>
         </div>

@@ -15,6 +15,13 @@
   font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
+/* 窄屏：格子间隙略紧 */
+@media (max-width: 640px) {
+  :root {
+    --gap: 5px;
+  }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -98,8 +105,8 @@ body {
 .cell .num {
   position: absolute;
   left: 50%;
-  bottom: 8px;
-  transform: translateX(-50%);
+  top: 50%;
+  transform: translateX(-50%) translateY(-50%);
   z-index: 1;
   font-weight: 800;
   font-size: clamp(1.05rem, 4.5vw, 1.4rem);
@@ -158,6 +165,33 @@ body {
   }
   80% {
     transform: translateX(4px);
+  }
+}
+
+/*
+ * 平板及以下：须写在 #board / .cell 基础样式之后，否则会被覆盖。
+ * 列宽用 fr 均分 + 格子 aspect-ratio:1，避免用 100% 算 --cell-size 时出现极窄列、纵向被拉成竖条。
+ */
+@media (max-width: 1023px) {
+  .board-shell {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  #board {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    justify-content: stretch;
+    grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  }
+
+  #board .cell {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+    min-width: 0;
+    min-height: 0;
   }
 }
 
